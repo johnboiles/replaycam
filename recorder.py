@@ -13,25 +13,9 @@ class AVConvException(Exception):
     pass
 
 
-class StoppableThread(threading.Thread):
-    """Thread class with a stop() method. The thread itself has to check
-    regularly for the stopped() condition."""
-
-    def __init__(self, **kwargs):
-        super(StoppableThread, self).__init__(**kwargs)
-        self._stop = threading.Event()
-
-    def stop(self):
-        self._stop.set()
-
-    def stopped(self):
-        return self._stop.isSet()
-
-
 class Recorder(object):
     camera = None
     stream = None
-    wait_recording_thread = None
 
     def __init__(self, framerate=90, resolution=(640, 480), display_framerate=30, directory="videos/", bitrate=1700000, seconds=8):
         self.framerate = framerate
@@ -46,19 +30,12 @@ class Recorder(object):
         self.camera = picamera.PiCamera(resolution=self.resolution, framerate=self.framerate)
         self.stream = picamera.PiCameraCircularIO(self.camera, seconds=self.seconds, bitrate=self.bitrate)
         self._start_recording()
-        self.wait_recording_thread = StoppableThread(target=self.check_for_error_loop)
-        self.wait_recording_thread.daemon = True
-        self.wait_recording_thread.start()
 
     def _start_recording(self):
         self.camera.start_recording(self.stream, format='h264', bitrate=self.bitrate, quality=0)
         logger.info("Camera started")
 
     def stop_recording(self):
-        self.wait_recording_thread.stop()
-        self._stop_recording()
-
-    def _stop_recording(self):
         self.camera.stop_recording()
         logger.info("Camera stopped")
 
@@ -108,10 +85,3 @@ class Recorder(object):
             self._start_recording()
 
         return filename
-
-    def check_for_error_loop(self):
-        """This should be called periodically to check for exceptions"""
-        while not self.wait_recording_thread.stopped():
-            with self.lock:
-                self.camera.wait_recording()
-            time.sleep(1)
