@@ -1,9 +1,3 @@
-import atexit
-import logging.config
-from flask import Flask, send_from_directory, Response
-from recorder import Recorder
-
-
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -40,35 +34,17 @@ LOGGING = {
     }
 }
 
-logging.config.dictConfig(LOGGING)
-logger = logging.getLogger('__name__')
+VIDEO_DIRECTORY = "/var/www/replaycam/videos/"
 
-app = Flask(__name__)
-app.debug = True
+# See https://picamera.readthedocs.org/en/release-1.10/fov.html for possible Raspberry Pi Camera settings
+RECORDER_CONFIG = {
+    "framerate": 42,
+    "resolution": (1296, 972),
+    "display_framerate": 21,
+    "directory": VIDEO_DIRECTORY,
+    "bitrate": int(9e6),
+    "seconds": 5,
+}
 
-video_directory = "/var/www/replaycam/videos/"
-recorder = Recorder(framerate=42, resolution=(1296, 972), display_framerate=21, directory=video_directory)
-recorder.start_recording()
-
-
-def cleanup():
-    recorder.close()
-
-
-@app.route('/videos/<path:path>')
-def videos(path):
-    return send_from_directory(video_directory, path)
-
-
-@app.route('/save')
-def save():
-    filename = recorder.save()
-    path = "/videos/" + filename
-    return Response(path, mimetype='text/plain')
-
-
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=80, debug=True)
-
-
-atexit.register(cleanup)
+INTERFACE = "0.0.0.0"
+PORT = 80

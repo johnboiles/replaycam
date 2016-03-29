@@ -9,14 +9,13 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-class AVConvException(Exception):
+class EncoderProcessException(Exception):
     pass
 
 
-class Recorder(object):
-    camera = None
-    stream = None
-
+class ReplayRecorder(object):
+    """Continuously records video to a circular buffer. When `save` is called, the video is written out to a mp4 file in
+    `self.directory` with filename `[unixtimestamp].mp4`"""
     def __init__(self, framerate=90, resolution=(640, 480), display_framerate=30, directory="videos/", bitrate=1700000, seconds=8):
         self.framerate = framerate
         self.display_framerate = display_framerate
@@ -25,13 +24,10 @@ class Recorder(object):
         self.bitrate = bitrate
         self.seconds = seconds
         self.lock = threading.Lock()
-
-    def start_recording(self):
         self.camera = picamera.PiCamera(resolution=self.resolution, framerate=self.framerate)
         self.stream = picamera.PiCameraCircularIO(self.camera, seconds=self.seconds, bitrate=self.bitrate)
-        self._start_recording()
 
-    def _start_recording(self):
+    def start_recording(self):
         self.camera.start_recording(self.stream, format='h264', bitrate=self.bitrate, quality=0)
         logger.info("Camera started")
 
@@ -64,24 +60,22 @@ class Recorder(object):
             process.stdin.write(buf)
 
         process.stdin.close()
-        process.wait(10)
-        if process.returncode is None:
-            logger.error("avconv command did not end in time")
-            raise AVConvException()
-        elif process.returncode != 0:
-            logger.error("avconv exited with non-zero return code: %d" % process.returncode)
-            raise AVConvException()
+        returncode = process.wait(15)
+        if returncode is None:
+            raise EncoderProcessException("avconv command timed out")
+        elif returncode != 0:
+            raise EncoderProcessException("avconv exited with non-zero return code: %d" % process.returncode)
 
     def save(self):
+        logger.info('Saving replay')
         with self.lock:
-            logger.info('Saving replay')
             filename = "%.0f.mp4" % time.time()
             filepath = self.directory + filename
-            # Catch 0.5s after the goal
-            self.camera.wait_recording(0.5)
+            # Record a bit of time after the goal
+            self.camera.wait_recording(0.3)
             self.stop_recording()
             self.write_video(self.stream, filepath)
             logger.info('Saved replay to %s' % filepath)
-            self._start_recording()
+            self.start_recording()
 
         return filename
