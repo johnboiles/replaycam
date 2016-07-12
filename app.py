@@ -28,5 +28,10 @@ def save():
     return Response(path, mimetype='text/plain')
 
 
+@app.route('/status')
+def status():
+    return Response('Hello from replaycam!', mimetype='text/plain')
+
+
 if __name__ == "__main__":
     app.run(host=config.INTERFACE, port=config.PORT)
